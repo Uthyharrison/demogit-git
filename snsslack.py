@@ -43,7 +43,7 @@ def lambda_handler(event, context):
                                                                                                                                                             'filename': object_key,
                                                                                                                                                                         'bucket': bucket_name,
                                                                                                                                                                                     'url': file_url,
-                                                                                                                                                                                                'timestamp': upload_time
+                                                                                                                                                                                                'uploadTimestamp': upload_time
                                                                                                                                                                                                         })
 
                                                                                                                                         # Send Slack alert
