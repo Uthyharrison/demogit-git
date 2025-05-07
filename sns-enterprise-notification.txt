@@ -1,0 +1,23 @@
+Email and Slack Notification System via AWS SNS & Lambda
+
+This project is a serverless notification pipeline that ingests files via Amazon S3, stores metadata in DynamoDB, and sends structured alerts to Email and Slack (Enterprise Grid) using AWS Lambda and SNS.
+
+
+ Components
+
+- Amazon S3: Stores incoming files.
+- AWS Lambda: Automatically triggered on new S3 object upload. Parses file, stores metadata, and publishes to an SNS topic.
+- Amazon DynamoDB: Stores structured metadata about each file (filename, timestamp, uploader, etc.).
+- Amazon SNS: Publishes structured messages.
+- SNS Subscription: send notification to Email
+- Slack: Receives notifications via an HTTPS endpoint (webhook URL) subscribed to the SNS topic.
+
+
+Upload a file to the specified S3 bucket.
+
+Lambda is triggered automatically.
+
+Metadata is stored in DynamoDB.
+
+SNS sends a message to Slack webhook
+
