@@ -1,0 +1,154 @@
+import json
+import boto3
+import urllib3
+
+dynamodb = boto3.resource('dynamodb')
+sns = boto3.client('sns')
+
+http = urllib3.PoolManager()
+
+table = dynamodb.Table('s8ik.student')  # Updated table name
+SNS_TOPIC_ARN = 'arn:aws:sns:us-east-1:533267247980:s8ikoyi-s3-critical-upload-notifications'
+SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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'
+
+def lambda_handler(event, context):
+    method = event['httpMethod']
+
+        if method == "OPTIONS":
+	        return {
+		            "statusCode": 200,
+			                "headers": {
+					                "Access-Control-Allow-Origin": "*",
+							                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+									                "Access-Control-Allow-Methods": "OPTIONS,GET,POST"
+											            },
+												                "body": json.dumps("CORS preflight response")
+														        }
+
+															if method == "POST":
+															        try:
+																            body = json.loads(event['body'])
+																	            except (TypeError, json.JSONDecodeError):
+																		                return {
+																				                "statusCode": 400,
+																						                "headers": {
+																								                    "Access-Control-Allow-Origin": "*",
+																										                        "Access-Control-Allow-Headers": "Content-Type"
+																													                },
+																															                "body": json.dumps("Invalid JSON in request body")
+																																	            }
+
+																																		            required_fields = ['name', 'email', 'studentID', 'department']
+																																			            missing_fields = [f for f in required_fields if f not in body]
+																																				            if missing_fields:
+																																					                return {
+																																							                "statusCode": 400,
+																																									                "headers": {
+																																											                    "Access-Control-Allow-Origin": "*",
+																																													                        "Access-Control-Allow-Headers": "Content-Type"
+																																																                },
+																																																		                "body": json.dumps(f"Missing required fields: {', '.join(missing_fields)}")
+																																																				            }
+
+																																																					            try:
+																																																						                table.put_item(Item=body)
+																																																								            print("Item stored in DynamoDB:", body)
+
+																																																									                message = (
+																																																											f"New student registered:\n\n"
+																																																											                f"Name: {body['name']}\n"
+																																																													                f"Email: {body['email']}\n"
+																																																															                f"ID: {body['studentID']}\n"
+																																																																	                f"Department: {body['department']}"
+																																																																			            )
+
+																																																																				                sns.publish(
+																																																																						                TopicArn=SNS_TOPIC_ARN,
+																																																																								                Subject="New Student Registration",
+																																																																										                Message=message
+																																																																												            )
+																																																																													                print("SNS notification sent")
+
+																																																																															            # Send Slack notification
+																																																																																                slack_payload = json.dumps({ "text": message }).encode('utf-8')
+																																																																																		            response = http.request(
+																																																																																			                    'POST',
+																																																																																					                    SLACK_WEBHOOK_URL,
+																																																																																							                    body=slack_payload,
+																																																																																									                    headers={'Content-Type': 'application/json'}
+																																																																																											                )
+																																																																																													            print("Slack webhook response:", response.status)
+
+																																																																																														                return {
+																																																																																																                "statusCode": 200,
+																																																																																																		                "headers": {
+																																																																																																				                    "Access-Control-Allow-Origin": "*",
+																																																																																																						                        "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																									                },
+																																																																																																											 "body": json.dumps("Item stored and notifications sent")
+																																																																																																											             }
+
+																																																																																																												             except Exception as e:
+																																																																																																													                 print("Error processing POST request:", str(e))
+																																																																																																															             return {
+																																																																																																																                     "statusCode": 500,
+																																																																																																																		                     "headers": {
+																																																																																																																				                         "Access-Control-Allow-Origin": "*",
+																																																																																																																							                     "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																									                     },
+																																																																																																																											                     "body": json.dumps("Internal server error")
+																																																																																																																													                 }
+
+																																																																																																																															     elif method == "GET":
+																																																																																																																															             path_params = event.get('pathParameters') or {}
+																																																																																																																																             student_id = path_params.get('studentID')
+																																																																																																																																	             if not student_id:
+																																																																																																																																		                 return {
+																																																																																																																																				                 "statusCode": 400,
+																																																																																																																																						                 "headers": {
+																																																																																																																																								                     "Access-Control-Allow-Origin": "*",
+																																																																																																																																										                         "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																																													                 },
+																																																																																																																																															                 "body": json.dumps("Missing 'studentID' in path")
+																																																																																																																																																	             }
+
+																																																																																																																																																		             try:
+																																																																																																																																																			                 response = table.get_item(Key={'studentID': student_id})
+																																																																																																																																																					             item = response.get('Item')
+																																																																																																																																																						      if item:
+																																																																																																																																																						                      return {
+																																																																																																																																																								                          "statusCode": 200,
+																																																																																																																																																											                      "headers": {
+																																																																																																																																																													                              "Access-Control-Allow-Origin": "*",
+																																																																																																																																																																                              "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																																																																			                          },
+																																																																																																																																																																						                      "body": json.dumps(item)
+																																																																																																																																																																								                      }
+																																																																																																																																																																										                  else:
+																																																																																																																																																																												                  return {
+																																																																																																																																																																														                      "statusCode": 404,
+																																																																																																																																																																																                          "headers": {
+																																																																																																																																																																																			                          "Access-Control-Allow-Origin": "*",
+																																																																																																																																																																																						                          "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																																																																																									                      },
+																																																																																																																																																																																											                          "body": json.dumps("Item not found")
+																																																																																																																																																																																														                  }
+																																																																																																																																																																																																          except Exception as e:
+																																																																																																																																																																																																	              print("Error retrieving item:", str(e))
+																																																																																																																																																																																																		                  return {
+																																																																																																																																																																																																				                  "statusCode": 500,
+																																																																																																																																																																																																						                  "headers": {
+																																																																																																																																																																																																								                      "Access-Control-Allow-Origin": "*",
+																																																																																																																																																																																																										                          "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																																																																																																													                  },
+																																																																																																																																																																																																															                  "body": json.dumps("Internal server error")
+																																																																																																																																																																																																																	              }
+
+																																																																																																																																																																																																																		          return {
+																																																																																																																																																																																																																			          "statusCode": 400,
+																																																																																																																																																																																																																				  "headers": {
+																																																																																																																																																																																																																				              "Access-Control-Allow-Origin": "*",
+																																																																																																																																																																																																																					                  "Access-Control-Allow-Headers": "Content-Type"
+																																																																																																																																																																																																																							          },
+																																																																																																																																																																																																																								          "body": json.dumps("Unsupported method")
+																																																																																																																																																																																																																									      }
